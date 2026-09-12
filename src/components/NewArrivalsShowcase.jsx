@@ -114,7 +114,7 @@ export default function NewArrivalsShowcase({
 
         .na-showcase__img {
           aspect-ratio: 3/4;
-          border: 1px solid #ddd;
+          // border: 1px solid #ddd;
           display: flex;
           align-items: center;
           justify-content: center;

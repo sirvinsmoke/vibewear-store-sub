@@ -198,22 +198,27 @@ export default function Checkout() {
   const handleWhatsApp  = () => createChannelOrder('whatsapp');
   const handleInstagram = () => createChannelOrder('instagram');
 
-  // Card payment — different shape from WhatsApp/Instagram: no "here's your
-  // Order ID, now go send it" hand-off. We create the order (channel: 'card',
-  // starts 'pending'), immediately open the Paystack popup, and on success
+  // Card / Mobile Money payment — different shape from WhatsApp/Instagram: no
+  // "here's your Order ID, now go send it" hand-off. We create the order
+  // (channel: 'card' or 'mobile_money', starts 'pending'), immediately open
+  // the Paystack popup restricted to just that one channel, and on success
   // ask our own backend to re-verify the transaction with Paystack's secret
   // key before marking the order 'completed' and moving on.
-  const handleCard = async () => {
+  //
+  // `method` is one of 'card' | 'mobile_money' — it doubles as both the
+  // order's `channel` field and the Paystack `channels` restriction, so the
+  // popup only ever shows the option the shopper actually picked.
+  const handlePaystack = async (method) => {
     if (!validate()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (!window.PaystackPop) {
       setCardError('Payment is still loading — please wait a moment and try again.');
       return;
     }
     setCardError('');
-    setLoadingChannel('card');
+    setLoadingChannel(method);
 
     try {
-      const res = await createOrder(buildOrderPayload('card'));
+      const res = await createOrder(buildOrderPayload(method));
       if (!res.success) throw new Error(res.message || 'Could not create order');
       const newOrder = res.order;
 
@@ -222,6 +227,7 @@ export default function Checkout() {
         email: form.email.trim(),
         amount: Math.round(grandTotal * 100), // GHS → pesewas
         currency: 'GHS',
+        channels: [method],
         ref: newOrder.orderNumber,
         metadata: { order_id: newOrder._id, order_number: newOrder.orderNumber },
         callback: (response) => {
@@ -232,7 +238,7 @@ export default function Checkout() {
               clearCart();
               navigate('/order-success', {
                 state: {
-                  orderNumber: newOrder.orderNumber, channel: 'card', amount: formatPrice(grandTotal),
+                  orderNumber: newOrder.orderNumber, channel: method, amount: formatPrice(grandTotal),
                   customer: { ...form }, items: cartItems,
                 },
               });
@@ -257,6 +263,9 @@ export default function Checkout() {
       setLoadingChannel(null);
     }
   };
+
+  const handleCard        = () => handlePaystack('card');
+  const handleMobileMoney = () => handlePaystack('mobile_money');
 
   const copyOrderId = async () => {
     if (!order) return;
@@ -502,7 +511,7 @@ export default function Checkout() {
                 {cardError}
               </div>
             )}
-            <div className="mb-2">
+            <div className="mb-2 space-y-2">
               <OptionRow onClick={handleCard} disabled={!!loadingChannel && loadingChannel !== 'card'}>
                 <span className="flex items-center gap-2 text-black text-sm font-medium">
                   {loadingChannel === 'card' ? (
@@ -517,6 +526,23 @@ export default function Checkout() {
                     </svg>
                   )}
                   {loadingChannel === 'card' ? 'Processing…' : 'Pay with Card'}
+                </span>
+                <span className="text-gray-400 text-[11px] font-semibold uppercase tracking-wide">Paystack</span>
+              </OptionRow>
+              <OptionRow onClick={handleMobileMoney} disabled={!!loadingChannel && loadingChannel !== 'mobile_money'}>
+                <span className="flex items-center gap-2 text-black text-sm font-medium">
+                  {loadingChannel === 'mobile_money' ? (
+                    <svg className="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" strokeWidth="1.6"/>
+                      <line x1="5" y1="18" x2="19" y2="18" strokeWidth="1.6"/>
+                    </svg>
+                  )}
+                  {loadingChannel === 'mobile_money' ? 'Processing…' : 'Pay with Mobile Money'}
                 </span>
                 <span className="text-gray-400 text-[11px] font-semibold uppercase tracking-wide">Paystack</span>
               </OptionRow>
